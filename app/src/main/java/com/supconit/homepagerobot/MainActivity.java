@@ -1,10 +1,17 @@
 package com.supconit.homepagerobot;
 
 import android.annotation.SuppressLint;
+import android.Manifest;
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.Intent;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
@@ -13,6 +20,7 @@ import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.webkit.WebChromeClient;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -24,6 +32,8 @@ import android.widget.TextView;
 
 public class MainActivity extends Activity {
     private static final String HOME_URL = "http://172.19.8.25:5173/home";
+    private static final String CHANNEL_ID = "device_online";
+    private static final int NOTIFICATION_PERMISSION_REQUEST = 1001;
 
     private FrameLayout rootView;
     private WebView webView;
@@ -46,6 +56,7 @@ public class MainActivity extends Activity {
         setupWebView();
         setupProgressBar();
         setupErrorView();
+        setupNotifications();
         hideSystemBars();
         loadHome();
     }
@@ -65,6 +76,7 @@ public class MainActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        webView.addJavascriptInterface(new AppBridge(), "AndroidBridge");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -159,6 +171,65 @@ public class MainActivity extends Activity {
         if (manager == null) return false;
         NetworkInfo info = manager.getActiveNetworkInfo();
         return info != null && info.isConnected();
+    }
+
+    private void setupNotifications() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID,
+                    "设备上线通知",
+                    NotificationManager.IMPORTANCE_DEFAULT
+            );
+            channel.setDescription("设备从离线变为在线时发送提醒");
+            NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
+        }
+
+        if (Build.VERSION.SDK_INT >= 33) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
+        }
+    }
+
+    private void showDeviceOnlineNotification(String title, String body) {
+        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (manager == null) return;
+
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, flags);
+        Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? new Notification.Builder(this, CHANNEL_ID)
+                : new Notification.Builder(this);
+
+        builder.setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setStyle(new Notification.BigTextStyle().bigText(body))
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true)
+                .setWhen(System.currentTimeMillis())
+                .setShowWhen(true);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            builder.setColor(Color.rgb(13, 114, 255));
+        }
+
+        manager.notify(Math.abs(body.hashCode()), builder.build());
+    }
+
+    private class AppBridge {
+        @JavascriptInterface
+        public void notifyDeviceOnline(String title, String body) {
+            runOnUiThread(() -> showDeviceOnlineNotification(title, body));
+        }
     }
 
     private void hideCustomView() {
