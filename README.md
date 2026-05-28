@@ -27,3 +27,7 @@ APK 文件在 Actions 运行完成后的 `Artifacts` 里下载。
 - HTTP 明文访问
 - WebView JavaScript / DOM Storage / 混合内容
 - 返回键优先返回 WebView 历史
+- 个推 Android SDK，AppID 为 `Q8yvSODiJv9xTIrZbMK7A9`
+- H5 可通过 `window.AndroidBridge.getGetuiClientId()` 获取 CID，也可监听 `getui-cid` 事件
+
+注意：`Master Secret` 只应放在服务端，例如 `getui-push-service`，不要写进 Android APK。

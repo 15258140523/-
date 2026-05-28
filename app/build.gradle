@@ -2,9 +2,20 @@ plugins {
     id "com.android.application"
 }
 
+def getuiAppId = project.findProperty("GETUI_APP_ID") ?: System.getenv("GETUI_APP_ID") ?: "Q8yvSODiJv9xTIrZbMK7A9"
+
 android {
     namespace "com.supconit.homepagerobot"
     compileSdk 35
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
 
     defaultConfig {
         applicationId "com.supconit.homepagerobot"
@@ -12,5 +23,13 @@ android {
         targetSdk 35
         versionCode 1
         versionName "1.0.0"
+        manifestPlaceholders = [
+                GETUI_APPID: getuiAppId
+        ]
     }
+}
+
+dependencies {
+    implementation "com.getui:gtsdk:3.3.13.0"
+    implementation "com.getui:gtc:3.3.1.0"
 }

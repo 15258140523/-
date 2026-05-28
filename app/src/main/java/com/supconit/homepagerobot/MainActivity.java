@@ -7,12 +7,15 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -30,10 +33,18 @@ import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import org.json.JSONObject;
+
+import java.lang.ref.WeakReference;
+
 public class MainActivity extends Activity {
+    private static final String TAG = "HomepageRobot";
     private static final String HOME_URL = "http://172.19.8.25:5173/home";
     private static final String CHANNEL_ID = "device_status";
     private static final int NOTIFICATION_PERMISSION_REQUEST = 1001;
+    private static final String PREFS_NAME = "robot_app";
+    private static final String PREF_GETUI_CID = "getui_cid";
+    private static WeakReference<MainActivity> activeActivity;
 
     private FrameLayout rootView;
     private WebView webView;
@@ -58,6 +69,7 @@ public class MainActivity extends Activity {
         setupErrorView();
         setupNotifications();
         hideSystemBars();
+        activeActivity = new WeakReference<>(this);
         loadHome();
     }
 
@@ -84,6 +96,7 @@ public class MainActivity extends Activity {
                 progressBar.setVisibility(View.GONE);
                 errorView.setVisibility(View.GONE);
                 webView.setVisibility(View.VISIBLE);
+                emitGetuiClientId();
             }
 
             @Override
@@ -233,6 +246,78 @@ public class MainActivity extends Activity {
         manager.notify(Math.abs(notificationKey.hashCode()), builder.build());
     }
 
+    public static void saveGetuiClientId(Context context, String cid) {
+        if (context == null || cid == null || cid.isEmpty()) return;
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(PREF_GETUI_CID, cid)
+                .apply();
+        Log.i(TAG, "Getui CID = " + cid);
+    }
+
+    public static void onGetuiClientId(String cid) {
+        MainActivity activity = activeActivity == null ? null : activeActivity.get();
+        if (activity == null) return;
+
+        activity.runOnUiThread(() -> {
+            activity.saveGetuiClientId(activity, cid);
+            activity.emitGetuiClientId();
+        });
+    }
+
+    public static void onGetuiTransmission(String payload) {
+        MainActivity activity = activeActivity == null ? null : activeActivity.get();
+        if (activity == null) return;
+
+        activity.runOnUiThread(() -> {
+            activity.emitGetuiPayload(payload);
+            activity.showTransmissionNotification(payload);
+        });
+    }
+
+    private String getGetuiClientId() {
+        return getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getString(PREF_GETUI_CID, "");
+    }
+
+    private void emitGetuiClientId() {
+        if (webView == null) return;
+        String cid = getGetuiClientId();
+        if (cid == null || cid.isEmpty()) return;
+        evaluateEvent("getui-cid", cid);
+    }
+
+    private void emitGetuiPayload(String payload) {
+        evaluateEvent("getui-message", payload);
+    }
+
+    private void evaluateEvent(String eventName, String detail) {
+        if (webView == null) return;
+        try {
+            String script = "window.dispatchEvent(new CustomEvent("
+                    + JSONObject.quote(eventName)
+                    + ",{detail:"
+                    + JSONObject.quote(detail == null ? "" : detail)
+                    + "}));";
+            webView.evaluateJavascript(script, null);
+        } catch (Exception error) {
+            Log.w(TAG, "emit event failed", error);
+        }
+    }
+
+    private void showTransmissionNotification(String payload) {
+        String title = "个推消息";
+        String body = payload == null || payload.isEmpty() ? "收到一条透传消息" : payload;
+
+        try {
+            JSONObject json = new JSONObject(payload);
+            title = json.optString("title", title);
+            body = json.optString("body", json.optString("message", body));
+        } catch (Exception ignored) {
+        }
+
+        showPushNotification(title, body, "getui", String.valueOf(System.currentTimeMillis()));
+    }
+
     private class AppBridge {
         @JavascriptInterface
         public void requestNotificationPermission() {
@@ -242,6 +327,11 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void pushMessage(String title, String body, String type, String key) {
             runOnUiThread(() -> showPushNotification(title, body, type, key));
+        }
+
+        @JavascriptInterface
+        public String getGetuiClientId() {
+            return MainActivity.this.getGetuiClientId();
         }
 
         @JavascriptInterface
@@ -302,6 +392,7 @@ public class MainActivity extends Activity {
         super.onResume();
         hideSystemBars();
         if (webView != null) webView.onResume();
+        emitGetuiClientId();
     }
 
     @Override
@@ -316,6 +407,10 @@ public class MainActivity extends Activity {
             rootView.removeView(webView);
             webView.destroy();
             webView = null;
+        }
+        MainActivity activity = activeActivity == null ? null : activeActivity.get();
+        if (activity == this) {
+            activeActivity = null;
         }
         super.onDestroy();
     }

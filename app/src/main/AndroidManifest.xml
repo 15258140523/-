@@ -4,6 +4,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
+        android:name=".RobotApplication"
         android:allowBackup="false"
         android:hardwareAccelerated="true"
         android:icon="@drawable/ic_launcher_foreground"
@@ -22,5 +23,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <meta-data
+            android:name="GETUI_APPID"
+            android:value="${GETUI_APPID}" />
+        <service
+            android:name=".GetuiIntentService"
+            android:exported="false" />
+        <service
+            android:name=".GetuiPushService"
+            android:exported="false"
+            android:label="PushService"
+            android:process=":pushservice" />
     </application>
+    <queries>
+        <intent>
+            <action android:name="com.getui.sdk.action" />
+        </intent>
+    </queries>
 </manifest>
