@@ -32,7 +32,7 @@ import android.widget.TextView;
 
 public class MainActivity extends Activity {
     private static final String HOME_URL = "http://172.19.8.25:5173/home";
-    private static final String CHANNEL_ID = "device_online";
+    private static final String CHANNEL_ID = "device_status";
     private static final int NOTIFICATION_PERMISSION_REQUEST = 1001;
 
     private FrameLayout rootView;
@@ -177,10 +177,10 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                     CHANNEL_ID,
-                    "设备上线通知",
+                    "设备状态通知",
                     NotificationManager.IMPORTANCE_DEFAULT
             );
-            channel.setDescription("设备从离线变为在线时发送提醒");
+            channel.setDescription("设备上线或离线时发送提醒");
             NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
             if (manager != null) {
                 manager.createNotificationChannel(channel);
@@ -192,7 +192,13 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void showDeviceOnlineNotification(String title, String body) {
+    private void requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
+        }
+    }
+
+    private void showPushNotification(String title, String body, String type, String key) {
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (manager == null) return;
 
@@ -218,17 +224,34 @@ public class MainActivity extends Activity {
                 .setWhen(System.currentTimeMillis())
                 .setShowWhen(true);
 
+        int color = "offline".equals(type) ? Color.rgb(255, 105, 110) : Color.rgb(13, 114, 255);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            builder.setColor(Color.rgb(13, 114, 255));
+            builder.setColor(color);
         }
 
-        manager.notify(Math.abs(body.hashCode()), builder.build());
+        String notificationKey = type + ":" + key + ":" + title + ":" + body;
+        manager.notify(Math.abs(notificationKey.hashCode()), builder.build());
     }
 
     private class AppBridge {
         @JavascriptInterface
+        public void requestNotificationPermission() {
+            runOnUiThread(() -> requestNotificationPermissionIfNeeded());
+        }
+
+        @JavascriptInterface
+        public void pushMessage(String title, String body, String type, String key) {
+            runOnUiThread(() -> showPushNotification(title, body, type, key));
+        }
+
+        @JavascriptInterface
         public void notifyDeviceOnline(String title, String body) {
-            runOnUiThread(() -> showDeviceOnlineNotification(title, body));
+            runOnUiThread(() -> showPushNotification(title, body, "online", body));
+        }
+
+        @JavascriptInterface
+        public void notifyDeviceOffline(String title, String body) {
+            runOnUiThread(() -> showPushNotification(title, body, "offline", body));
         }
     }
 
