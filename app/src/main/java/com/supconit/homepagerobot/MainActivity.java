@@ -3,12 +3,16 @@ package com.supconit.homepagerobot;
 import android.annotation.SuppressLint;
 import android.Manifest;
 import android.app.Activity;
+import android.app.NotificationManager;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
@@ -37,6 +41,7 @@ public class MainActivity extends Activity {
     private static final int NOTIFICATION_PERMISSION_REQUEST = 1001;
     private static final String PREFS_NAME = "robot_app";
     private static final String PREF_GETUI_CID = "getui_cid";
+    private static final String PREF_FSI_PERMISSION_PROMPTED = "fsi_permission_prompted";
     private static WeakReference<MainActivity> activeActivity;
 
     private FrameLayout rootView;
@@ -184,6 +189,7 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 33) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
         }
+        requestFullScreenIntentPermissionIfNeeded();
     }
 
     private void requestNotificationPermissionIfNeeded() {
@@ -194,6 +200,31 @@ public class MainActivity extends Activity {
 
     private void showPushNotification(String title, String body, String type, String key) {
         NotificationHelper.showNotification(this, title, body, type, key);
+        NotificationHelper.showAlertActivity(this, title, body, type);
+    }
+
+    private void requestFullScreenIntentPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < 34) return;
+
+        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (manager == null || manager.canUseFullScreenIntent()) return;
+
+        boolean prompted = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .getBoolean(PREF_FSI_PERMISSION_PROMPTED, false);
+        if (prompted) return;
+
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .edit()
+                .putBoolean(PREF_FSI_PERMISSION_PROMPTED, true)
+                .apply();
+
+        try {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        } catch (Exception error) {
+            Log.w(TAG, "open full-screen intent settings failed", error);
+        }
     }
 
     public static void saveGetuiClientId(Context context, String cid) {
