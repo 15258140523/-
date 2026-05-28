@@ -3,13 +3,7 @@ package com.supconit.homepagerobot;
 import android.annotation.SuppressLint;
 import android.Manifest;
 import android.app.Activity;
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.Context;
-import android.content.Intent;
-import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -40,7 +34,6 @@ import java.lang.ref.WeakReference;
 public class MainActivity extends Activity {
     private static final String TAG = "HomepageRobot";
     private static final String HOME_URL = "http://172.19.8.25:5173/home";
-    private static final String CHANNEL_ID = "device_status";
     private static final int NOTIFICATION_PERMISSION_REQUEST = 1001;
     private static final String PREFS_NAME = "robot_app";
     private static final String PREF_GETUI_CID = "getui_cid";
@@ -187,19 +180,7 @@ public class MainActivity extends Activity {
     }
 
     private void setupNotifications() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    "设备状态通知",
-                    NotificationManager.IMPORTANCE_DEFAULT
-            );
-            channel.setDescription("设备上线或离线时发送提醒");
-            NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-            if (manager != null) {
-                manager.createNotificationChannel(channel);
-            }
-        }
-
+        NotificationHelper.ensureChannel(this);
         if (Build.VERSION.SDK_INT >= 33) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
         }
@@ -212,38 +193,7 @@ public class MainActivity extends Activity {
     }
 
     private void showPushNotification(String title, String body, String type, String key) {
-        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        if (manager == null) return;
-
-        Intent intent = new Intent(this, MainActivity.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            flags |= PendingIntent.FLAG_IMMUTABLE;
-        }
-
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, flags);
-        Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                ? new Notification.Builder(this, CHANNEL_ID)
-                : new Notification.Builder(this);
-
-        builder.setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setContentTitle(title)
-                .setContentText(body)
-                .setStyle(new Notification.BigTextStyle().bigText(body))
-                .setContentIntent(pendingIntent)
-                .setAutoCancel(true)
-                .setWhen(System.currentTimeMillis())
-                .setShowWhen(true);
-
-        int color = "offline".equals(type) ? Color.rgb(255, 105, 110) : Color.rgb(13, 114, 255);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            builder.setColor(color);
-        }
-
-        String notificationKey = type + ":" + key + ":" + title + ":" + body;
-        manager.notify(Math.abs(notificationKey.hashCode()), builder.build());
+        NotificationHelper.showNotification(this, title, body, type, key);
     }
 
     public static void saveGetuiClientId(Context context, String cid) {
@@ -271,7 +221,6 @@ public class MainActivity extends Activity {
 
         activity.runOnUiThread(() -> {
             activity.emitGetuiPayload(payload);
-            activity.showTransmissionNotification(payload);
         });
     }
 
@@ -302,20 +251,6 @@ public class MainActivity extends Activity {
         } catch (Exception error) {
             Log.w(TAG, "emit event failed", error);
         }
-    }
-
-    private void showTransmissionNotification(String payload) {
-        String title = "个推消息";
-        String body = payload == null || payload.isEmpty() ? "收到一条透传消息" : payload;
-
-        try {
-            JSONObject json = new JSONObject(payload);
-            title = json.optString("title", title);
-            body = json.optString("body", json.optString("message", body));
-        } catch (Exception ignored) {
-        }
-
-        showPushNotification(title, body, "getui", String.valueOf(System.currentTimeMillis()));
     }
 
     private class AppBridge {

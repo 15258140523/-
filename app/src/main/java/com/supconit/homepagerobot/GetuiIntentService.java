@@ -40,6 +40,7 @@ public class GetuiIntentService extends GTIntentService {
 
         String data = new String(payload);
         Log.i(TAG, "Getui transmission = " + data);
+        NotificationHelper.showTransmissionNotification(context, data);
         MainActivity.onGetuiTransmission(data);
     }
 
