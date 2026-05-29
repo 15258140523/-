@@ -37,7 +37,7 @@ import java.lang.ref.WeakReference;
 
 public class MainActivity extends Activity {
     private static final String TAG = "HomepageRobot";
-    private static final String HOME_URL = "http://172.19.8.25:5173/home";
+    private static final String HOME_URL = "http://172.20.10.64:9220/home";
     private static final int NOTIFICATION_PERMISSION_REQUEST = 1001;
     private static final String PREFS_NAME = "robot_app";
     private static final String PREF_GETUI_CID = "getui_cid";
