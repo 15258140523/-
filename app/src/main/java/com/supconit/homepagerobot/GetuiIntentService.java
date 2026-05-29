@@ -59,13 +59,6 @@ public class GetuiIntentService extends GTIntentService {
         Log.i(TAG, "Getui notification arrived, cid = " + message.getClientId()
                 + ", title = " + message.getTitle()
                 + ", content = " + message.getContent());
-        NotificationHelper.showNotification(
-                context,
-                message.getTitle(),
-                message.getContent(),
-                "getui-notification",
-                message.getTaskId()
-        );
     }
 
     @Override
