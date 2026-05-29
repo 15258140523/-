@@ -13,11 +13,14 @@ import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
+import android.util.Log;
 
 import org.json.JSONObject;
 
 final class NotificationHelper {
-    static final String CHANNEL_ID = "device_alerts_v2";
+    private static final String TAG = "HomepageRobot";
+    static final String CHANNEL_ID = "device_status";
+    static final String ALERT_CHANNEL_ID = "device_alerts_v2";
 
     private NotificationHelper() {
     }
@@ -25,25 +28,38 @@ final class NotificationHelper {
     static void ensureChannel(Context context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
 
-        NotificationChannel channel = new NotificationChannel(
+        NotificationChannel statusChannel = new NotificationChannel(
                 CHANNEL_ID,
+                "设备状态通知",
+                NotificationManager.IMPORTANCE_HIGH
+        );
+        statusChannel.setDescription("设备上线、离线或服务端推送提醒");
+        statusChannel.enableVibration(true);
+        statusChannel.enableLights(true);
+        statusChannel.setLightColor(Color.rgb(32, 200, 255));
+        statusChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+
+        NotificationChannel alertChannel = new NotificationChannel(
+                ALERT_CHANNEL_ID,
                 "设备弹窗提醒",
                 NotificationManager.IMPORTANCE_HIGH
         );
-        channel.setDescription("设备上线、离线或服务端推送弹窗提醒");
-        channel.enableVibration(true);
-        channel.enableLights(true);
-        channel.setLightColor(Color.rgb(32, 200, 255));
-        channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        alertChannel.setDescription("设备上线、离线或服务端推送弹窗提醒");
+        alertChannel.enableVibration(true);
+        alertChannel.enableLights(true);
+        alertChannel.setLightColor(Color.rgb(32, 200, 255));
+        alertChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
         Uri sound = Settings.System.DEFAULT_NOTIFICATION_URI;
         AudioAttributes attributes = new AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build();
-        channel.setSound(sound, attributes);
+        statusChannel.setSound(sound, attributes);
+        alertChannel.setSound(sound, attributes);
         NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager != null) {
-            manager.createNotificationChannel(channel);
+            manager.createNotificationChannel(statusChannel);
+            manager.createNotificationChannel(alertChannel);
         }
     }
 
@@ -81,12 +97,6 @@ final class NotificationHelper {
         Intent intent = new Intent(appContext, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
 
-        Intent alertIntent = new Intent(appContext, PushAlertActivity.class);
-        alertIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        alertIntent.putExtra(PushAlertActivity.EXTRA_TITLE, title);
-        alertIntent.putExtra(PushAlertActivity.EXTRA_BODY, body);
-        alertIntent.putExtra(PushAlertActivity.EXTRA_TYPE, type);
-
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             flags |= PendingIntent.FLAG_IMMUTABLE;
@@ -94,7 +104,6 @@ final class NotificationHelper {
 
         int requestCode = Math.abs((type + ":" + key + ":" + title + ":" + body).hashCode());
         PendingIntent pendingIntent = PendingIntent.getActivity(appContext, requestCode, intent, flags);
-        PendingIntent fullScreenIntent = PendingIntent.getActivity(appContext, requestCode + 1, alertIntent, flags);
         Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? new Notification.Builder(appContext, CHANNEL_ID)
                 : new Notification.Builder(appContext);
@@ -110,24 +119,76 @@ final class NotificationHelper {
                 .setCategory(Notification.CATEGORY_ALARM)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .setPriority(Notification.PRIORITY_HIGH)
-                .setDefaults(Notification.DEFAULT_SOUND | Notification.DEFAULT_VIBRATE)
-                .setFullScreenIntent(fullScreenIntent, true);
+                .setDefaults(Notification.DEFAULT_SOUND | Notification.DEFAULT_VIBRATE);
 
         int color = "offline".equals(type) ? Color.rgb(255, 105, 110) : Color.rgb(13, 114, 255);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             builder.setColor(color);
         }
 
-        manager.notify(requestCode, builder.build());
+        try {
+            manager.notify(requestCode, builder.build());
+        } catch (Exception error) {
+            Log.w(TAG, "show notification failed", error);
+            return;
+        }
+
+        showFullScreenNotification(appContext, title, body, type, key, requestCode + 1, flags);
     }
 
     static void showAlertActivity(Context context, String title, String body, String type) {
         if (context == null) return;
+        try {
+            Intent alertIntent = alertIntent(context, title, body, type);
+            context.startActivity(alertIntent);
+        } catch (Exception error) {
+            Log.w(TAG, "show alert activity failed", error);
+        }
+    }
+
+    private static void showFullScreenNotification(Context context, String title, String body, String type, String key, int requestCode, int flags) {
+        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null) return;
+        if (Build.VERSION.SDK_INT >= 34 && !manager.canUseFullScreenIntent()) {
+            return;
+        }
+
+        PendingIntent fullScreenIntent = PendingIntent.getActivity(
+                context,
+                requestCode,
+                alertIntent(context, title, body, type),
+                flags
+        );
+        Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? new Notification.Builder(context, ALERT_CHANNEL_ID)
+                : new Notification.Builder(context);
+
+        builder.setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setStyle(new Notification.BigTextStyle().bigText(body))
+                .setAutoCancel(true)
+                .setWhen(System.currentTimeMillis())
+                .setShowWhen(true)
+                .setCategory(Notification.CATEGORY_ALARM)
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setPriority(Notification.PRIORITY_HIGH)
+                .setDefaults(Notification.DEFAULT_SOUND | Notification.DEFAULT_VIBRATE)
+                .setFullScreenIntent(fullScreenIntent, true);
+
+        try {
+            manager.notify(Math.abs(("alert:" + type + ":" + key).hashCode()), builder.build());
+        } catch (Exception error) {
+            Log.w(TAG, "show full-screen notification failed", error);
+        }
+    }
+
+    private static Intent alertIntent(Context context, String title, String body, String type) {
         Intent alertIntent = new Intent(context, PushAlertActivity.class);
         alertIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         alertIntent.putExtra(PushAlertActivity.EXTRA_TITLE, title);
         alertIntent.putExtra(PushAlertActivity.EXTRA_BODY, body);
         alertIntent.putExtra(PushAlertActivity.EXTRA_TYPE, type);
-        context.startActivity(alertIntent);
+        return alertIntent;
     }
 }
