@@ -21,6 +21,7 @@ final class NotificationHelper {
     private static final String TAG = "HomepageRobot";
     static final String CHANNEL_ID = "device_status";
     static final String ALERT_CHANNEL_ID = "device_alerts_v2";
+    static final String KEEP_ALIVE_CHANNEL_ID = "keep_alive";
 
     private NotificationHelper() {
     }
@@ -49,6 +50,13 @@ final class NotificationHelper {
         alertChannel.enableLights(true);
         alertChannel.setLightColor(Color.rgb(32, 200, 255));
         alertChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        NotificationChannel keepAliveChannel = new NotificationChannel(
+                KEEP_ALIVE_CHANNEL_ID,
+                "后台保活",
+                NotificationManager.IMPORTANCE_LOW
+        );
+        keepAliveChannel.setDescription("保持机器人节点监控在后台运行");
+        keepAliveChannel.setShowBadge(false);
         Uri sound = Settings.System.DEFAULT_NOTIFICATION_URI;
         AudioAttributes attributes = new AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_NOTIFICATION)
@@ -60,7 +68,35 @@ final class NotificationHelper {
         if (manager != null) {
             manager.createNotificationChannel(statusChannel);
             manager.createNotificationChannel(alertChannel);
+            manager.createNotificationChannel(keepAliveChannel);
         }
+    }
+
+    static Notification buildKeepAliveNotification(Context context) {
+        Context appContext = context.getApplicationContext();
+        Intent intent = new Intent(appContext, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+
+        PendingIntent pendingIntent = PendingIntent.getActivity(appContext, 1001, intent, flags);
+        Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? new Notification.Builder(appContext, KEEP_ALIVE_CHANNEL_ID)
+                : new Notification.Builder(appContext);
+
+        builder.setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle("机器人节点监控运行中")
+                .setContentText("正在保持后台连接，用于接收设备状态推送")
+                .setContentIntent(pendingIntent)
+                .setOngoing(true)
+                .setShowWhen(false)
+                .setPriority(Notification.PRIORITY_LOW)
+                .setCategory(Notification.CATEGORY_SERVICE);
+
+        return builder.build();
     }
 
     static void showTransmissionNotification(Context context, String payload) {

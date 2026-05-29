@@ -4,11 +4,15 @@ import android.annotation.SuppressLint;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
@@ -37,6 +41,7 @@ public class MainActivity extends Activity {
     private static final int NOTIFICATION_PERMISSION_REQUEST = 1001;
     private static final String PREFS_NAME = "robot_app";
     private static final String PREF_GETUI_CID = "getui_cid";
+    private static final String PREF_BATTERY_OPTIMIZATION_PROMPTED = "battery_optimization_prompted";
     private static WeakReference<MainActivity> activeActivity;
 
     private FrameLayout rootView;
@@ -61,6 +66,8 @@ public class MainActivity extends Activity {
         setupProgressBar();
         setupErrorView();
         setupNotifications();
+        KeepAliveService.start(this);
+        requestIgnoreBatteryOptimizationIfNeeded();
         hideSystemBars();
         activeActivity = new WeakReference<>(this);
         loadHome();
@@ -195,6 +202,30 @@ public class MainActivity extends Activity {
     private void showPushNotification(String title, String body, String type, String key) {
         NotificationHelper.showNotification(this, title, body, type, key);
         NotificationHelper.showAlertActivity(this, title, body, type);
+    }
+
+    private void requestIgnoreBatteryOptimizationIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+
+        PowerManager manager = (PowerManager) getSystemService(POWER_SERVICE);
+        if (manager == null || manager.isIgnoringBatteryOptimizations(getPackageName())) return;
+
+        boolean prompted = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .getBoolean(PREF_BATTERY_OPTIMIZATION_PROMPTED, false);
+        if (prompted) return;
+
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .edit()
+                .putBoolean(PREF_BATTERY_OPTIMIZATION_PROMPTED, true)
+                .apply();
+
+        try {
+            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        } catch (Exception error) {
+            Log.w(TAG, "request ignore battery optimization failed", error);
+        }
     }
 
     public static void saveGetuiClientId(Context context, String cid) {

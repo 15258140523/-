@@ -13,6 +13,7 @@ public class RobotApplication extends Application {
     public void onCreate() {
         super.onCreate();
         NotificationHelper.ensureChannel(this);
+        KeepAliveService.start(this);
         initGetui();
     }
 
