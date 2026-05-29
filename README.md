@@ -2,7 +2,7 @@
 
 这是一个独立的 Android WebView 壳项目，启动后直接打开：
 
-`http://172.20.10.64:9220/home`
+`http://saix.supconit.com:50081/home`
 
 这个文件夹可以单独作为 GitHub 仓库提交，不需要提交完整 H5 项目。
 
