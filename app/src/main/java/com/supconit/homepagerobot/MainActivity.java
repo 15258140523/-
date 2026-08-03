@@ -5,6 +5,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -309,6 +310,15 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void notifyDeviceOffline(String title, String body) {
             runOnUiThread(() -> showPushNotification(title, body, "offline", body));
+        }
+
+        @JavascriptInterface
+        public void setScreenOrientation(String orientation) {
+            runOnUiThread(() -> setRequestedOrientation(
+                    "landscape".equals(orientation)
+                            ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                            : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            ));
         }
     }
 
