@@ -29,14 +29,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".PushAlertActivity"
-            android:excludeFromRecents="true"
-            android:exported="false"
-            android:launchMode="singleTop"
-            android:screenOrientation="landscape"
-            android:showWhenLocked="true"
-            android:turnScreenOn="true" />
         <meta-data
             android:name="GETUI_APPID"
             android:value="${GETUI_APPID}" />

@@ -202,7 +202,6 @@ public class MainActivity extends Activity {
 
     private void showPushNotification(String title, String body, String type, String key) {
         NotificationHelper.showNotification(this, title, body, type, key);
-        NotificationHelper.showAlertActivity(this, title, body, type);
     }
 
     private void requestIgnoreBatteryOptimizationIfNeeded() {

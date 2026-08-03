@@ -20,7 +20,6 @@ import org.json.JSONObject;
 final class NotificationHelper {
     private static final String TAG = "HomepageRobot";
     static final String CHANNEL_ID = "device_status";
-    static final String ALERT_CHANNEL_ID = "device_alerts_v2";
     static final String KEEP_ALIVE_CHANNEL_ID = "keep_alive";
 
     private NotificationHelper() {
@@ -40,16 +39,6 @@ final class NotificationHelper {
         statusChannel.setLightColor(Color.rgb(32, 200, 255));
         statusChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
 
-        NotificationChannel alertChannel = new NotificationChannel(
-                ALERT_CHANNEL_ID,
-                "设备弹窗提醒",
-                NotificationManager.IMPORTANCE_HIGH
-        );
-        alertChannel.setDescription("设备上线、离线或服务端推送弹窗提醒");
-        alertChannel.enableVibration(true);
-        alertChannel.enableLights(true);
-        alertChannel.setLightColor(Color.rgb(32, 200, 255));
-        alertChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
         NotificationChannel keepAliveChannel = new NotificationChannel(
                 KEEP_ALIVE_CHANNEL_ID,
                 "后台保活",
@@ -63,11 +52,9 @@ final class NotificationHelper {
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build();
         statusChannel.setSound(sound, attributes);
-        alertChannel.setSound(sound, attributes);
         NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager != null) {
             manager.createNotificationChannel(statusChannel);
-            manager.createNotificationChannel(alertChannel);
             manager.createNotificationChannel(keepAliveChannel);
         }
     }
@@ -169,62 +156,5 @@ final class NotificationHelper {
             return;
         }
 
-        showFullScreenNotification(appContext, title, body, type, key, requestCode + 1, flags);
-    }
-
-    static void showAlertActivity(Context context, String title, String body, String type) {
-        if (context == null) return;
-        try {
-            Intent alertIntent = alertIntent(context, title, body, type);
-            context.startActivity(alertIntent);
-        } catch (Exception error) {
-            Log.w(TAG, "show alert activity failed", error);
-        }
-    }
-
-    private static void showFullScreenNotification(Context context, String title, String body, String type, String key, int requestCode, int flags) {
-        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        if (manager == null) return;
-        if (Build.VERSION.SDK_INT >= 34 && !manager.canUseFullScreenIntent()) {
-            return;
-        }
-
-        PendingIntent fullScreenIntent = PendingIntent.getActivity(
-                context,
-                requestCode,
-                alertIntent(context, title, body, type),
-                flags
-        );
-        Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                ? new Notification.Builder(context, ALERT_CHANNEL_ID)
-                : new Notification.Builder(context);
-
-        builder.setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setContentTitle(title)
-                .setContentText(body)
-                .setStyle(new Notification.BigTextStyle().bigText(body))
-                .setAutoCancel(true)
-                .setWhen(System.currentTimeMillis())
-                .setShowWhen(true)
-                .setCategory(Notification.CATEGORY_ALARM)
-                .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .setPriority(Notification.PRIORITY_HIGH)
-                .setDefaults(Notification.DEFAULT_SOUND | Notification.DEFAULT_VIBRATE)
-                .setFullScreenIntent(fullScreenIntent, true);
-
-        try {
-            manager.notify(Math.abs(("alert:" + type + ":" + key).hashCode()), builder.build());
-        } catch (Exception error) {
-            Log.w(TAG, "show full-screen notification failed", error);
-        }
-    }
-
-    private static Intent alertIntent(Context context, String title, String body, String type) {
-        Intent alertIntent = new Intent(context, PushAlertActivity.class);
-        alertIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        alertIntent.putExtra(PushAlertActivity.EXTRA_TITLE, title);
-        alertIntent.putExtra(PushAlertActivity.EXTRA_BODY, body);
-        alertIntent.putExtra(PushAlertActivity.EXTRA_TYPE, type);
-        return alertIntent;
     }
 }
